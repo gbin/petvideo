@@ -4,12 +4,13 @@ import pygame
 import numpy as np
 import sigrok.core as sr
 from enum import Enum
+import pyximport
+import numpy
+pyximport.install(setup_args={"include_dirs":numpy.get_include()}, reload_support=True)
+from vdecode import decode
 
 INIT_WIDTH, INIT_HEIGHT = 640, 480
 
-VIDEO_MASK     = 0b00000001
-VER_DRIVE_MASK = 0b00000010
-HOR_DRIVE_MASK = 0b00000100
 
 raster = None
 running = True
@@ -20,44 +21,15 @@ def init_raster(w: int, h: int):
     raster = np.ndarray(shape=(w, h), dtype=np.uint8)
 
 
-class VState(Enum):
-    PRE_VBLANK = 0
-    VBLANK = 1
-    HBLANK = 2
-    LINE = 3
-
-
-
-vstate = VState.PRE_VBLANK
 gindex = 0
 
+
 def _datafeed_cb(device, packet):
-    global vstate
     global gindex
     if packet.type != sr.PacketType.LOGIC:
         return
-    left = 0
-    it = np.nditer(packet.payload.data)
-    if vstate == VState.PRE_VBLANK:
-        for b in it:
-            if b & VER_DRIVE_MASK == 0:
-                vstate = VState.VBLANK
-                break
-            left += 1
-    if vstate == VState.VBLANK:
-        for b in it:
-            if b & VER_DRIVE_MASK != 0:
-                print(f'Start of scan {gindex+left}')
-                vstate = VState.PRE_VBLANK
-                break
-            left += 1
+    decode(packet.payload.data, raster, gindex)
     gindex += len(packet.payload.data)
-    decoded_signal = np.packbits(np.bitwise_and(packet.payload.data, VIDEO_MASK))
-    # print(decoded_signal)
-    # incoming_length =
-    # right = len(decoded_signal) + current_index if current_index +
-    # raster[current_index:len(decoded_signal)] = decoded_signal
-    # print(packet.payload.data)
 
 
 def _stopped_cb(**kwargs):
@@ -93,12 +65,14 @@ def setup_replay():
     packet = FakePacket()
 
     def stream():
+        loop = 0
         while running:
             b = f.read(1000)
             if len(b) == 0:
+                loop += 1
                 f.seek(0)
                 b = f.read(1000)
-                print('replay')
+                print(f'replay frame {loop}')
             packet.payload.data = np.frombuffer(b, dtype=np.uint8)
             _datafeed_cb(None, packet)
     t = Thread(target=stream)
