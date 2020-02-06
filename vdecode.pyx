@@ -1,6 +1,7 @@
 # cython: language_level=3
 import numpy as np
 cimport numpy as np
+from cpython cimport array
 
 cdef enum VState:
     PRE_VBLANK = 0
@@ -14,9 +15,14 @@ DEF VER_DRIVE_MASK = 0b00000010
 DEF HOR_DRIVE_MASK = 0b00000100
 cdef int vstate = VState.PRE_VBLANK
 
+# here we assume a x10 oversampling
+cdef array.array current_line_buffer = array.array('B', [0,] * 3200)
+#cdef np.ndarray[np.uint8_t] current_line_buffer = np.zeros((320 * 10,), dtype=int)
+cdef int current_pixel_index = 0
+cdef int current_line_index = 0
 
 def decode(np.ndarray[np.uint8_t] raw_data, np.ndarray[np.uint8_t, ndim=2] framebuffer, int gindex):
-    global vstate
+    global vstate, current_pixel_index, current_line_index
     cdef int left = 0
     cdef int i = 0
 
@@ -34,12 +40,42 @@ def decode(np.ndarray[np.uint8_t] raw_data, np.ndarray[np.uint8_t, ndim=2] frame
             while i < max:
                 b = raw_data[i]
                 if b & VER_DRIVE_MASK != 0:
-                    #print(f'Start of scan {left+gindex}')
-                    vstate = VState.PRE_VBLANK
+                    print(f'Line {current_line_index}')
+                    print(f'Start of scan {left+gindex}')
+                    current_line_index = 0
+                    vstate = VState.HBLANK
                     break
                 left += 1
                 i += 1
-    decoded_signal = np.packbits(np.bitwise_and(raw_data, VIDEO_MASK))
+        if vstate == VState.HBLANK:
+            while i < max:
+                b = raw_data[i]
+                if b & VER_DRIVE_MASK == 0:
+                    print(f'End of scan {left+gindex}')
+                    vstate = VState.PRE_VBLANK
+                    break
+                if b & HOR_DRIVE_MASK != 0:
+                    #print(f'Start of line {left+gindex}')
+                    vstate = VState.LINE
+                    current_pixel_index = 0
+                    current_line_index += 1
+                    break
+                left += 1
+                i += 1
+
+        if vstate == VState.LINE:
+            while i < max:
+                b = raw_data[i]
+                if b & HOR_DRIVE_MASK == 0:
+                    vstate = VState.HBLANK
+                    print(f'Line lengh {current_pixel_index}')
+                    break
+                current_line_buffer[current_pixel_index] = b
+                current_pixel_index += 1
+                left += 1
+                i += 1
+
+    # decoded_signal = np.packbits(np.bitwise_and(raw_data, VIDEO_MASK))
     # print(decoded_signal)
     # incoming_length =
     # right = len(decoded_signal) + current_index if current_index +
