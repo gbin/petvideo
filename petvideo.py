@@ -19,6 +19,7 @@ running = True
 def init_raster(w: int, h: int):
     global raster
     raster = np.ndarray(shape=(w, h), dtype=np.uint8)
+    print(f'h = {h}  w = {w}')
 
 
 gindex = 0
