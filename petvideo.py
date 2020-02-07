@@ -2,12 +2,12 @@ from threading import Thread
 
 import pygame
 import numpy as np
-import sigrok.core as sr
 from enum import Enum
 import pyximport
 import numpy
 pyximport.install(setup_args={"include_dirs":numpy.get_include()}, reload_support=True)
 from vdecode import decode
+import sigrok.core as sr
 
 INIT_WIDTH, INIT_HEIGHT = 640, 480
 
@@ -45,8 +45,10 @@ def setup_sigrok(driver: str = 'fx2lafw'):
     driver = context.drivers[driver]
     dev = driver.scan()[0]
     dev.open()
+    print(dir(dev))
     print(dev.config_keys())
-    dev.config_set(sr.ConfigKey.SAMPLERATE, 10000)
+    print(dev.config_list(sr.ConfigKey.SAMPLERATE))
+    dev.config_set(sr.ConfigKey.SAMPLERATE, 24000000)
     session.add_device(dev)
     session.start()
     t = Thread(target=session.run)
@@ -80,15 +82,6 @@ def setup_replay():
     t.start()
 
 
-def generate_raster():
-    x = np.arange(0, 200)
-    y = np.arange(0, 320)
-    X, Y = np.meshgrid(x, y)
-    Z = X + Y
-    Z = 255 * Z / Z.max()
-    return pygame.surfarray.make_surface(Z)
-
-
 def main():
 
     global running
@@ -101,17 +94,14 @@ def main():
                                      8)
     pygame.display.set_caption('PET')
     pygame.display.flip()
-    setup_replay()
+    #setup_replay()
+    setup_sigrok()
 
     frame = 1
     while running:
         screen.blit(pygame.surfarray.make_surface(raster), (0, 0))
-
-        # screen.fill(pygame.Color('red'))
         pygame.display.flip()
         frame += 1
-        # if not frame % 60:
-        #    print(frame)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
