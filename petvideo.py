@@ -1,5 +1,6 @@
 from threading import Thread
 
+import click
 import pygame
 import numpy as np
 from enum import Enum
@@ -10,27 +11,32 @@ from vdecode import decode
 import sigrok.core as sr
 
 INIT_WIDTH, INIT_HEIGHT = 640, 480
+EMULATED_READ_RATE = 240000
 
-
-raster = None
 running = True
+render_clock = pygame.time.Clock()
+decoder_clock = pygame.time.Clock()
+
+decoded_frames = 0
+displayed_frames = 0
 
 
-def init_raster(w: int, h: int):
-    global raster
-    raster = np.ndarray(shape=(w, h), dtype=np.uint8)
-    print(f'h = {h}  w = {w}')
+class DecodedSurface(object):
+    def __init__(self, shape):
+        self.max_width = 1000
+        self.surface = pygame.Surface(shape, depth=8)
 
 
-gindex = 0
+decoded_surface = DecodedSurface((3200, 500))
 
 
 def _datafeed_cb(device, packet):
-    global gindex
+    global decoded_frames
     if packet.type != sr.PacketType.LOGIC:
         return
-    decode(packet.payload.data, raster, gindex)
-    gindex += len(packet.payload.data)
+    buffer = packet.payload.data
+    # having a vector instead of a weird 2d buffer that sigrok gives us improves drastically the performance.
+    decode(buffer.reshape((buffer.shape[0], )), decoded_surface, decoder_clock)
 
 
 def _stopped_cb(**kwargs):
@@ -45,9 +51,6 @@ def setup_sigrok(driver: str = 'fx2lafw'):
     driver = context.drivers[driver]
     dev = driver.scan()[0]
     dev.open()
-    print(dir(dev))
-    print(dev.config_keys())
-    print(dev.config_list(sr.ConfigKey.SAMPLERATE))
     dev.config_set(sr.ConfigKey.SAMPLERATE, 24000000)
     session.add_device(dev)
     session.start()
@@ -70,37 +73,57 @@ def setup_replay():
     def stream():
         loop = 0
         while running:
-            b = f.read(1000)
+            b = f.read(EMULATED_READ_RATE)
             if len(b) == 0:
                 loop += 1
                 f.seek(0)
-                b = f.read(1000)
-                print(f'replay frame {loop}')
-            packet.payload.data = np.frombuffer(b, dtype=np.uint8)
+                b = f.read(EMULATED_READ_RATE)
+                # print(f'replay loop {loop}')
+            buffer = np.frombuffer(b, dtype=np.uint8)
+            buffer = buffer.reshape((buffer.shape[0], 1))  # This emulates the shape sigrok is giving us in real life.
+            packet.payload.data = buffer
             _datafeed_cb(None, packet)
     t = Thread(target=stream)
     t.start()
 
 
-def main():
+@click.command()
+@click.option('--test/--no-test', default=False, help='Start petvideo in test mode.')
+def main(test: bool = False):
 
     global running
+
     screen_width, screen_height = INIT_WIDTH, INIT_HEIGHT
 
-    init_raster(screen_width, screen_height)
     pygame.init()
+    font = pygame.font.Font('freesansbold.ttf', 10)
     screen = pygame.display.set_mode((screen_width, screen_height),
                                      pygame.DOUBLEBUF | pygame.HWSURFACE | pygame.RESIZABLE,
                                      8)
     pygame.display.set_caption('PET')
     pygame.display.flip()
-    #setup_replay()
-    setup_sigrok()
+    if test:
+        setup_replay()
+    else:
+        setup_sigrok()
 
     frame = 1
     while running:
-        screen.blit(pygame.surfarray.make_surface(raster), (0, 0))
+        decoder_fps_txt = font.render(f'decoder {decoder_clock.get_fps():.4} fps', True, (255, 255, 255), (0, 0, 0))
+        decoder_fps_txt_rect = decoder_fps_txt.get_rect()
+        decoder_fps_txt_rect.topleft = (0, 0)
+        render_fps_txt = font.render(f'render {render_clock.get_fps():.4} fps', True, (255, 255, 255), (0, 0, 0))
+        render_fps_txt_rect = decoder_fps_txt.get_rect()
+        render_fps_txt_rect.topleft = (0, decoder_fps_txt_rect.bottom)
+        src_rect = pygame.Rect(100, 0, decoded_surface.max_width, 250)
+        img = pygame.transform.chop(decoded_surface.surface, src_rect)
+        dst = pygame.transform.scale(img, (screen_width, screen_height))
+        screen.blit(decoded_surface.surface, (0, 0))
+        screen.blit(decoder_fps_txt, decoder_fps_txt_rect)
+        screen.blit(render_fps_txt, render_fps_txt_rect)
         pygame.display.flip()
+        render_clock.tick(30)
+
         frame += 1
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -108,7 +131,6 @@ def main():
             elif event.type == pygame.VIDEORESIZE:
                 screen_width, screen_height = event.w, event.h
                 screen = pygame.display.set_mode((screen_width, screen_height), pygame.RESIZABLE)
-                init_raster(screen_width, screen_height)
     # session.stop()
 
 
