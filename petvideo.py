@@ -106,6 +106,7 @@ def main(test: bool = False):
         setup_replay()
     else:
         setup_sigrok()
+    img = pygame.Surface((1050, 250),depth=8)
 
     frame = 1
     while running:
@@ -115,10 +116,9 @@ def main(test: bool = False):
         render_fps_txt = font.render(f'render {render_clock.get_fps():.4} fps', True, (255, 255, 255), (0, 0, 0))
         render_fps_txt_rect = decoder_fps_txt.get_rect()
         render_fps_txt_rect.topleft = (0, decoder_fps_txt_rect.bottom)
-        src_rect = pygame.Rect(100, 0, decoded_surface.max_width, 250)
-        img = pygame.transform.chop(decoded_surface.surface, src_rect)
+        img.blit(decoded_surface.surface, (0, 0), (400,0,1050,250))
         dst = pygame.transform.scale(img, (screen_width, screen_height))
-        screen.blit(decoded_surface.surface, (0, 0))
+        screen.blit(dst, (0,0))
         screen.blit(decoder_fps_txt, decoder_fps_txt_rect)
         screen.blit(render_fps_txt, render_fps_txt_rect)
         pygame.display.flip()
@@ -130,6 +130,7 @@ def main(test: bool = False):
                 running = False
             elif event.type == pygame.VIDEORESIZE:
                 screen_width, screen_height = event.w, event.h
+                print(f'{screen_width}, {screen_height}')
                 screen = pygame.display.set_mode((screen_width, screen_height), pygame.RESIZABLE)
     # session.stop()
 
