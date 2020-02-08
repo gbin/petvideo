@@ -7,7 +7,7 @@ from enum import Enum
 import pyximport
 import numpy
 pyximport.install(setup_args={"include_dirs":numpy.get_include()}, reload_support=True)
-from vdecode import decode
+from vdecode import decode, decoded, recycled
 import sigrok.core as sr
 
 INIT_WIDTH, INIT_HEIGHT = 640, 480
@@ -21,13 +21,7 @@ decoded_frames = 0
 displayed_frames = 0
 
 
-class DecodedSurface(object):
-    def __init__(self, shape):
-        self.max_width = 1000
-        self.surface = pygame.Surface(shape, depth=8)
 
-
-decoded_surface = DecodedSurface((3200, 500))
 
 
 def _datafeed_cb(device, packet):
@@ -36,29 +30,28 @@ def _datafeed_cb(device, packet):
         return
     buffer = packet.payload.data
     # having a vector instead of a weird 2d buffer that sigrok gives us improves drastically the performance.
-    decode(buffer.reshape((buffer.shape[0], )), decoded_surface, decoder_clock)
+    decode(buffer.reshape((buffer.shape[0], )), decoder_clock)
 
 
-def _stopped_cb(**kwargs):
-    print('Stopped')
 
-
-def setup_sigrok(driver: str = 'fx2lafw'):
+def start_sigrok(driver: str = 'fx2lafw'):
+    global t
     context = sr.Context_create()
     session = context.create_session()
     session.add_datafeed_callback(_datafeed_cb)
-    session.set_stopped_callback(_stopped_cb)
+    def stopped():
+        print('stopped')
+    session.set_stopped_callback(stopped)
     driver = context.drivers[driver]
     dev = driver.scan()[0]
     dev.open()
-    dev.config_set(sr.ConfigKey.SAMPLERATE, 24000000)
+    dev.config_set(sr.ConfigKey.SAMPLERATE, 12000000)
     session.add_device(dev)
     session.start()
-    t = Thread(target=session.run)
-    t.start()
+    session.run()
 
 
-def setup_replay():
+def start_replay():
     class FakePayload:
         def __init__(self):
             self.data = None
@@ -70,21 +63,18 @@ def setup_replay():
     f = open('test/raw-vid-ver-hor-x-x-x-x-x.raw', 'rb')
     packet = FakePacket()
 
-    def stream():
-        loop = 0
-        while running:
+    loop = 0
+    while running:
+        b = f.read(EMULATED_READ_RATE)
+        if len(b) == 0:
+            loop += 1
+            f.seek(0)
             b = f.read(EMULATED_READ_RATE)
-            if len(b) == 0:
-                loop += 1
-                f.seek(0)
-                b = f.read(EMULATED_READ_RATE)
-                # print(f'replay loop {loop}')
-            buffer = np.frombuffer(b, dtype=np.uint8)
-            buffer = buffer.reshape((buffer.shape[0], 1))  # This emulates the shape sigrok is giving us in real life.
-            packet.payload.data = buffer
-            _datafeed_cb(None, packet)
-    t = Thread(target=stream)
-    t.start()
+            # print(f'replay loop {loop}')
+        buffer = np.frombuffer(b, dtype=np.uint8)
+        buffer = buffer.reshape((buffer.shape[0], 1))  # This emulates the shape sigrok is giving us in real life.
+        packet.payload.data = buffer
+        _datafeed_cb(None, packet)
 
 
 @click.command()
@@ -102,11 +92,13 @@ def main(test: bool = False):
                                      8)
     pygame.display.set_caption('PET')
     pygame.display.flip()
+    t = None
     if test:
-        setup_replay()
+        t = Thread(target=start_replay)
     else:
-        setup_sigrok()
-    img = pygame.Surface((1050, 250),depth=8)
+        t = Thread(target=start_sigrok)
+    t.start()
+    img = pygame.Surface((625, 250),depth=8)
 
     frame = 1
     while running:
@@ -116,13 +108,17 @@ def main(test: bool = False):
         render_fps_txt = font.render(f'render {render_clock.get_fps():.4} fps', True, (255, 255, 255), (0, 0, 0))
         render_fps_txt_rect = decoder_fps_txt.get_rect()
         render_fps_txt_rect.topleft = (0, decoder_fps_txt_rect.bottom)
-        img.blit(decoded_surface.surface, (0, 0), (400,0,1050,250))
-        dst = pygame.transform.scale(img, (screen_width, screen_height))
-        screen.blit(dst, (0,0))
+        if not decoded.empty():
+            decoded_surface = decoded.get()
+            img.blit(decoded_surface.surface, (0, 0), (200,0,625, 250))
+            dst = pygame.transform.scale(img, (screen_width, screen_height))
+            screen.blit(dst, (0,0))
+            recycled.put(decoded_surface)
         screen.blit(decoder_fps_txt, decoder_fps_txt_rect)
         screen.blit(render_fps_txt, render_fps_txt_rect)
         pygame.display.flip()
-        render_clock.tick(30)
+
+        render_clock.tick(120)
 
         frame += 1
         for event in pygame.event.get():

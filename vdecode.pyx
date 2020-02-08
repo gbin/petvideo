@@ -2,6 +2,9 @@
 cimport numpy as np
 from libc.stdint cimport uint8_t, uint64_t
 from cpython cimport array
+from queue import Queue
+import pygame
+
 cdef enum VState:
     PRE_VBLANK = 0
     VBLANK = 1
@@ -9,6 +12,15 @@ cdef enum VState:
     LEFT_LINE = 3
     RIGHT_LINE = 4
 
+decoded = Queue()
+recycled = Queue()
+
+class DecodedSurface(object):
+    def __init__(self, shape):
+        self.max_width = 1000
+        self.surface = pygame.Surface(shape, depth=8)
+for i in range(120):
+    recycled.put(DecodedSurface((3200, 500)))
 
 DEF VIDEO_MASK     = 0b00000001
 DEF VER_DRIVE_MASK = 0b00000010
@@ -20,11 +32,14 @@ cdef int current_line_index = 0
 
 cdef array.array line_buffer = array.array('B', [0]*3200)
 
-def decode(np.ndarray[np.uint8_t, ndim=1] raw_data, decoded_surface, decoder_clock):
-    global vstate, current_pixel_index, current_line_index
+decoded_surface = None
+def decode(np.ndarray[np.uint8_t, ndim=1] raw_data, decoder_clock):
+    global vstate, current_pixel_index, current_line_index, decoded_surface
     cdef int i = 0
     cdef int decoded_frames = 0
     cdef int buffer_len = raw_data.shape[0]
+    if decoded_surface is None:
+        decoded_surface = recycled.get()
     current_buffer = decoded_surface.surface.get_buffer()
     cdef uint8_t b
     while i < buffer_len:
@@ -49,6 +64,8 @@ def decode(np.ndarray[np.uint8_t, ndim=1] raw_data, decoded_surface, decoder_clo
                         break
                     i += 1
             decoder_clock.tick()
+            decoded.put(decoded_surface)
+            decoded_surface = recycled.get()
 
         if vstate == VState.HBLANK:
             while i < buffer_len:
