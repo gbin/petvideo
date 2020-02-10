@@ -101,7 +101,7 @@ def main(test: bool = False):
         render_fps_txt_rect.topleft = (0, decoder_fps_txt_rect.bottom)
         if not decoded.empty():
             decoded_surface = decoded.get()
-            img.blit(decoded_surface.surface, (0, 0), (200,0,625, 250))
+            img.blit(decoded_surface, (0, 0), (200,0,625, 250))
             dst = pygame.transform.scale(img, (screen_width, screen_height))
             screen.blit(dst, (0,0))
             recycled.put(decoded_surface)
