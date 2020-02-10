@@ -9,7 +9,7 @@ DEF VIDEO_MASK     = 0b00000001
 DEF VER_DRIVE_MASK = 0b00000010
 DEF HOR_DRIVE_MASK = 0b00000100
 
-DEF BUFFER_WIDTH = 3200
+DEF BUFFER_WIDTH = 1000
 DEF BUFFER_HEIGHT = 500
 
 cdef enum VState:
@@ -23,12 +23,6 @@ render_lock = Lock()
 decoded_surface = pygame.Surface((BUFFER_WIDTH, BUFFER_HEIGHT), depth=8)
 rendered_surface = pygame.Surface((BUFFER_WIDTH, BUFFER_HEIGHT), depth=8)
 
-def flip_surfaces():
-    global decoded_surface, rendered_surface
-    with render_lock:
-        decoded_surface, rendered_surface = rendered_surface, rendered_surface
-
-
 cdef int vstate = VState.PRE_VBLANK
 cdef int current_pixel_index = 0
 cdef int current_line_index = 0
@@ -37,6 +31,7 @@ cdef array.array line_buffer = array.array('B', [0]*BUFFER_WIDTH)
 
 def decode(np.ndarray[np.uint8_t, ndim=1] raw_data, decoder_clock):
     global vstate, current_pixel_index, current_line_index
+    global decoded_surface, rendered_surface
     cdef int i = 0
     cdef int buffer_len = raw_data.shape[0]
     cdef uint8_t b
@@ -61,7 +56,8 @@ def decode(np.ndarray[np.uint8_t, ndim=1] raw_data, decoder_clock):
                         vstate = VState.HBLANK
                         break
             decoder_clock.tick()
-            flip_surfaces()
+            with render_lock:
+                decoded_surface, rendered_surface = rendered_surface, decoded_surface
 
         if vstate == VState.HBLANK:
             while i < buffer_len:
@@ -93,6 +89,7 @@ def decode(np.ndarray[np.uint8_t, ndim=1] raw_data, decoder_clock):
                     current_buffer = decoded_surface.get_buffer()
                     current_buffer.write(bytes(line_buffer), current_line_index*BUFFER_WIDTH)
                     del current_buffer
+
                     current_line_index += 1
                     break
                 line_buffer[current_pixel_index] = (1 - (b & VIDEO_MASK)) * 30
