@@ -40,7 +40,11 @@ def start_sigrok(driver: str = 'fx2lafw'):
     session.add_datafeed_callback(_datafeed_cb)
     session.set_stopped_callback(_stopped_cb)
     driver = context.drivers[driver]
-    dev = driver.scan()[0]
+    devs = driver.scan()
+    if not devs:
+        print('No fx2la devices found.')
+        return
+    dev = devs.scan()[0]
     dev.open()
     dev.config_set(sr.ConfigKey.SAMPLERATE, LA_SAMPLE_RATE)
     session.add_device(dev)
@@ -77,7 +81,8 @@ def start_replay():
 @click.option('--test/--no-test', default=False, help='Start petvideo in replay mode.')
 @click.option('--phosphore/--no-phosphore', default=False, help='Emulates a fancy phoshore effect.')
 @click.option('--fps/--no-fps', default=False, help='Show the current performance of the emulator.')
-def main(test: bool = False, phosphore: bool = False, fps: bool = False):
+@click.option('--fullscreen/--windowed', default=False, help='Start the emulator fullscreen.')
+def main(test: bool = False, phosphore: bool = False, fps: bool = False, fullscreen: bool = False):
 
     global running
 
@@ -85,9 +90,14 @@ def main(test: bool = False, phosphore: bool = False, fps: bool = False):
 
     pygame.init()
     font = pygame.font.Font('freesansbold.ttf', 10)
-    screen = pygame.display.set_mode((screen_width, screen_height),
-                                     pygame.DOUBLEBUF | pygame.HWSURFACE | pygame.RESIZABLE,
-                                     8)
+    opts = pygame.DOUBLEBUF | pygame.HWSURFACE | pygame.RESIZABLE
+    if fullscreen:
+        opts |= pygame.FULLSCREEN
+    if fullscreen:
+        screen = pygame.display.set_mode(flags=opts, depth=8)
+        screen_width, screen_height = screen.get_width(), screen.get_height()
+    else:
+        screen = pygame.display.set_mode((screen_width, screen_height), opts, 8)
     pygame.display.set_caption('PET')
     pal = [(0, i, 0) for i in range(256)]
     img = pygame.Surface((625, 250), depth=8)
@@ -138,6 +148,11 @@ def main(test: bool = False, phosphore: bool = False, fps: bool = False):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_f:
+                    pygame.display.toggle_fullscreen()
+                elif event.key == pygame.K_ESCAPE:
+                    running = False 
             elif event.type == pygame.VIDEORESIZE:
                 screen_width, screen_height = event.w, event.h
                 print(f'{screen_width}, {screen_height}')
