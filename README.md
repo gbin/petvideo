@@ -7,8 +7,8 @@ You can hook it up and have the output of the PET displayed in a window like thi
 ## Why?
 
 PETs are awesome but the fact that they are a "onesie" computer makes it hard to test independently their 
-motherboard from their proprietary screens. This piece of software allows you to just hook up a PET motherboard and fix
- it without to be close to a buzzing 10kv device that tries to kill you.
+motherboard from their proprietary screens. This piece of software allows you to just hook up a PET motherboard to your PC and fix
+ it without beeing close to a buzzing 10kv device that tries to kill you.
 
 The alternative is to build a composite adapter but it would be a one purpose device while this LA device can also be used for more advance vintage computer troubleshooting!
 
