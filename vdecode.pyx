@@ -45,27 +45,28 @@ def decode(np.ndarray[np.uint8_t, ndim=1] raw_data, decoder_clock):
             with nogil:
                 while i < buffer_len:
                     b = raw_data[i]
+                    i += 1
                     if b & VER_DRIVE_MASK == 0:
                         vstate = VState.VBLANK
                         break
-                    i += 1
 
         if vstate == VState.VBLANK:
             with nogil:
                 while i < buffer_len:
                     b = raw_data[i]
+                    i += 1
                     if b & VER_DRIVE_MASK != 0:
                         current_line_index = 0
                         current_max_pixel_index = 0
                         vstate = VState.HBLANK
                         break
-                    i += 1
             decoder_clock.tick()
             flip_surfaces()
 
         if vstate == VState.HBLANK:
             while i < buffer_len:
                 b = raw_data[i]
+                i += 1
                 if b & VER_DRIVE_MASK == 0:
                     vstate = VState.PRE_VBLANK
                     break
@@ -73,20 +74,20 @@ def decode(np.ndarray[np.uint8_t, ndim=1] raw_data, decoder_clock):
                     vstate = VState.LEFT_LINE
                     current_pixel_index = 0
                     break
-                i += 1
         if vstate == VState.LEFT_LINE:
             while i < buffer_len:
                 b = raw_data[i]
+                i += 1
                 line_buffer[current_pixel_index] = (1 - (b & VIDEO_MASK)) * 30
                 current_pixel_index += 1
                 if b & HOR_DRIVE_MASK == 0:
                     vstate = VState.RIGHT_LINE
                     break
-                i += 1
 
         if vstate == VState.RIGHT_LINE:
             while i < buffer_len:
                 b = raw_data[i]
+                i += 1
                 if b & HOR_DRIVE_MASK != 0:
                     vstate = VState.HBLANK
                     current_buffer = decoded_surface.get_buffer()
@@ -96,4 +97,3 @@ def decode(np.ndarray[np.uint8_t, ndim=1] raw_data, decoder_clock):
                     break
                 line_buffer[current_pixel_index] = (1 - (b & VIDEO_MASK)) * 30
                 current_pixel_index += 1
-                i += 1

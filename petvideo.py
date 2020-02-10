@@ -13,7 +13,10 @@ pyximport.install(setup_args={"include_dirs":np.get_include()}, reload_support=T
 from vdecode import decode, render_lock, rendered_surface
 
 INIT_WIDTH, INIT_HEIGHT = 640, 480
-EMULATED_READ_RATE = 240000
+LA_SAMPLE_RATE = 12000000
+
+EMULATED_SAMPLE_BUFFER_SIZE = 240000
+EMULATED_DATAFEED_RATE = LA_SAMPLE_RATE // EMULATED_SAMPLE_BUFFER_SIZE
 
 running = True
 render_clock = pygame.time.Clock()
@@ -39,13 +42,14 @@ def start_sigrok(driver: str = 'fx2lafw'):
     driver = context.drivers[driver]
     dev = driver.scan()[0]
     dev.open()
-    dev.config_set(sr.ConfigKey.SAMPLERATE, 12000000)
+    dev.config_set(sr.ConfigKey.SAMPLERATE, LA_SAMPLE_RATE)
     session.add_device(dev)
     session.start()
     session.run()
 
 
 def start_replay():
+    replay_clock = pygame.time.Clock()
     class FakePayload:
         def __init__(self):
             self.data = None
@@ -58,14 +62,15 @@ def start_replay():
     packet = FakePacket()
 
     while running:
-        b = f.read(EMULATED_READ_RATE)
+        b = f.read(EMULATED_SAMPLE_BUFFER_SIZE)
         if len(b) == 0:
             f.seek(0)
-            b = f.read(EMULATED_READ_RATE)
+            b = f.read(EMULATED_SAMPLE_BUFFER_SIZE)
         buffer = np.frombuffer(b, dtype=np.uint8)
         buffer = buffer.reshape((buffer.shape[0], 1))  # This emulates the shape sigrok is giving us in real life.
         packet.payload.data = buffer
         _datafeed_cb(None, packet)
+        replay_clock.tick(EMULATED_DATAFEED_RATE)
 
 
 @click.command()
