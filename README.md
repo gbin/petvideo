@@ -32,6 +32,10 @@ It should look like this...
 
 With here, brown for video, red for vertical drive, yellow for horizontal drive and black for GND.
 
+Starting pulseview, the sigrok graphical client, the signals should look like this:
+
+![](assets/pulseview.png)
+
 ## Software dependencies
 
 You will need to install:
@@ -69,6 +73,23 @@ To see if your system is keeping up you can ask for rendering and decoding stati
 ./petvideo --fps
 ```
 
+Other options are available, check out the --help for an updated list:
+```bash
+./petvideo --help
+```
+
+
+## Theory of operation
+This software is shamelessly doing what is called "bitbanging", interpreting an hardware signal purely in software.
+The core of the logic is the state machine in vdecode.pyx that is cycling between 5 states:
+
+```
+PRE_VBLANK    Waiting state to catch the next vertical blank (start to a screen end the ray is at the top) 
+VBLANK        Start of the vertical blank waiting for a line. 
+HBLANK        Start of the horizontal blank waiting for pixels to arrive. 
+LEFT_LINE     First part of the line when HBLANK is still on
+RIGHT_LINE    Second port of the line when HBLANK reset to prepare to trigger for the next line.
+```
 
 ## Creating a capture for the tool
 The test sample has been captured like this:
