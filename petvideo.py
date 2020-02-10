@@ -10,7 +10,7 @@ import sigrok.core as sr
 
 import pyximport
 pyximport.install(setup_args={"include_dirs":np.get_include()}, reload_support=True)
-from vdecode import decode, decoded, recycled
+from vdecode import decode, render_lock, rendered_surface
 
 INIT_WIDTH, INIT_HEIGHT = 640, 480
 EMULATED_READ_RATE = 240000
@@ -99,12 +99,10 @@ def main(test: bool = False):
         render_fps_txt = font.render(f'render {render_clock.get_fps():.4} fps', True, (255, 255, 255), (0, 0, 0))
         render_fps_txt_rect = decoder_fps_txt.get_rect()
         render_fps_txt_rect.topleft = (0, decoder_fps_txt_rect.bottom)
-        if not decoded.empty():
-            decoded_surface = decoded.get()
-            img.blit(decoded_surface, (0, 0), (200,0,625, 250))
-            dst = pygame.transform.scale(img, (screen_width, screen_height))
-            screen.blit(dst, (0,0))
-            recycled.put(decoded_surface)
+        with render_lock:
+            img.blit(rendered_surface, (0, 0), (200, 0, 625, 250))
+        dst = pygame.transform.scale(img, (screen_width, screen_height))
+        screen.blit(dst, (0, 0))
         screen.blit(decoder_fps_txt, decoder_fps_txt_rect)
         screen.blit(render_fps_txt, render_fps_txt_rect)
         pygame.display.flip()
