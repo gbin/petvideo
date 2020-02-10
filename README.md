@@ -6,10 +6,11 @@ You can hook it up and have the output of the PET displayed in a window like thi
 
 ## Why?
 
-PETs are awesome but the fact that they are a "onesie" computer, it is hard to test independently their 
-motherboard from their screens. This allows you to just hook up a PET motherboard and fix it without to be close to a buzzing 10kv device that tries to kill you.
+PETs are awesome but the fact that they are a "onesie" computer makes it hard to test independently their 
+motherboard from their proprietary screens. This piece of software allows you to just hook up a PET motherboard and fix
+ it without to be close to a buzzing 10kv device that tries to kill you.
 
-The alternative is to build a composite adapter but it is a one purpose device while a LA can also be used for more advance vintage computer troubleshooting!
+The alternative is to build a composite adapter but it would be a one purpose device while this LA device can also be used for more advance vintage computer troubleshooting!
 
 ## What do I need?
 
@@ -90,6 +91,9 @@ HBLANK        Start of the horizontal blank waiting for pixels to arrive.
 LEFT_LINE     First part of the line when HBLANK is still on
 RIGHT_LINE    Second port of the line when HBLANK reset to prepare to trigger for the next line.
 ```
+
+The signal is only sampled at 12MHz while the device can do 24MHz+ because the USB 2 bandwidth is limited to ~20 MB/s so it cannot keep up at more than 20Mhz.
+If some contributors can check with USB3 devices, feel free to post a PR to add their support.
 
 ## Creating a capture for the tool
 The test sample has been captured like this:
