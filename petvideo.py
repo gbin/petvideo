@@ -100,6 +100,7 @@ def main(test: bool = False, phosphore: bool = False, fps: bool = False, fullscr
         screen_width, screen_height = screen.get_width(), screen.get_height()
     else:
         screen = pygame.display.set_mode((screen_width, screen_height), opts, 8)
+    pygame.display.set_icon(pygame.image.load('assets/icon.png'))
     pygame.display.set_caption('PET')
     pal = [(0, i, 0) for i in range(256)]
     img = pygame.Surface((625, 250), depth=8)

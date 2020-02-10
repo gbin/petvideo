@@ -1,6 +1,9 @@
 # petvideo
 A simple video acquisition program to display the Commodore PET video output with a logic analyzer.
 
+![](assets/petvideo.gif)
+
+
 You will need a $10 fx2la compatible USB LA device.
 
 Connect like this:
