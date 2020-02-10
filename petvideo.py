@@ -4,6 +4,8 @@ from enum import Enum
 from threading import Thread
 
 import click
+import os
+os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = 'hide'
 import pygame
 import numpy as np
 import sigrok.core as sr
