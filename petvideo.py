@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 
+from enum import Enum
 from threading import Thread
 
 import click
 import pygame
 import numpy as np
-from enum import Enum
-import pyximport
-import numpy
-pyximport.install(setup_args={"include_dirs":numpy.get_include()}, reload_support=True)
-from vdecode import decode, decoded, recycled
 import sigrok.core as sr
+
+import pyximport
+pyximport.install(setup_args={"include_dirs":np.get_include()}, reload_support=True)
+from vdecode import decode, decoded, recycled
 
 INIT_WIDTH, INIT_HEIGHT = 640, 480
 EMULATED_READ_RATE = 240000
@@ -19,15 +19,8 @@ running = True
 render_clock = pygame.time.Clock()
 decoder_clock = pygame.time.Clock()
 
-decoded_frames = 0
-displayed_frames = 0
-
-
-
-
 
 def _datafeed_cb(device, packet):
-    global decoded_frames
     if packet.type != sr.PacketType.LOGIC:
         return
     buffer = packet.payload.data
@@ -35,15 +28,14 @@ def _datafeed_cb(device, packet):
     decode(buffer.reshape((buffer.shape[0], )), decoder_clock)
 
 
+def _stopped_cb():
+    print('stopped')
 
 def start_sigrok(driver: str = 'fx2lafw'):
-    global t
     context = sr.Context_create()
     session = context.create_session()
     session.add_datafeed_callback(_datafeed_cb)
-    def stopped():
-        print('stopped')
-    session.set_stopped_callback(stopped)
+    session.set_stopped_callback(_stopped_cb)
     driver = context.drivers[driver]
     dev = driver.scan()[0]
     dev.open()
@@ -65,14 +57,11 @@ def start_replay():
     f = open('test/raw-vid-ver-hor-x-x-x-x-x.raw', 'rb')
     packet = FakePacket()
 
-    loop = 0
     while running:
         b = f.read(EMULATED_READ_RATE)
         if len(b) == 0:
-            loop += 1
             f.seek(0)
             b = f.read(EMULATED_READ_RATE)
-            # print(f'replay loop {loop}')
         buffer = np.frombuffer(b, dtype=np.uint8)
         buffer = buffer.reshape((buffer.shape[0], 1))  # This emulates the shape sigrok is giving us in real life.
         packet.payload.data = buffer
@@ -100,7 +89,7 @@ def main(test: bool = False):
     else:
         t = Thread(target=start_sigrok)
     t.start()
-    img = pygame.Surface((625, 250),depth=8)
+    img = pygame.Surface((625, 250), depth=8)
 
     frame = 1
     while running:
