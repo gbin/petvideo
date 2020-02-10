@@ -36,7 +36,7 @@ cdef int current_line_index = 0
 cdef array.array line_buffer = array.array('B', [0]*BUFFER_WIDTH)
 
 def decode(np.ndarray[np.uint8_t, ndim=1] raw_data, decoder_clock):
-    global vstate, current_pixel_index, current_line_index, decoded_surface
+    global vstate, current_pixel_index, current_line_index
     cdef int i = 0
     cdef int buffer_len = raw_data.shape[0]
     cdef uint8_t b
