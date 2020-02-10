@@ -10,7 +10,7 @@ import sigrok.core as sr
 
 import pyximport
 pyximport.install(setup_args={"include_dirs":np.get_include()}, reload_support=True)
-from vdecode import decode, render_lock, rendered_surface
+from vdecode import decode, render_lock, rendered_surface, decoded_surface
 
 INIT_WIDTH, INIT_HEIGHT = 640, 480
 LA_SAMPLE_RATE = 12000000
@@ -74,8 +74,10 @@ def start_replay():
 
 
 @click.command()
-@click.option('--test/--no-test', default=False, help='Start petvideo in test mode.')
-def main(test: bool = False):
+@click.option('--test/--no-test', default=False, help='Start petvideo in replay mode.')
+@click.option('--phosphore/--no-phosphore', default=False, help='Emulates a fancy phoshore effect.')
+@click.option('--fps/--no-fps', default=False, help='Show the current performance of the emulator.')
+def main(test: bool = False, phosphore: bool = False, fps: bool = False):
 
     global running
 
@@ -87,29 +89,47 @@ def main(test: bool = False):
                                      pygame.DOUBLEBUF | pygame.HWSURFACE | pygame.RESIZABLE,
                                      8)
     pygame.display.set_caption('PET')
-    pygame.display.flip()
+    pal = [(0, i, 0) for i in range(256)]
+    img = pygame.Surface((625, 250), depth=8)
+
+    if phosphore:
+        img.set_alpha(100)
+        prev = pygame.Surface((625, 250), depth=8)
+        prev.set_palette(pal)
+        prev.set_alpha(100)
+
+    for s in (img, decoded_surface, rendered_surface):
+        s.set_palette(pal)
+
     t = None
     if test:
         t = Thread(target=start_replay)
     else:
         t = Thread(target=start_sigrok)
     t.start()
-    img = pygame.Surface((625, 250), depth=8)
+
 
     frame = 1
     while running:
-        decoder_fps_txt = font.render(f'decoder {decoder_clock.get_fps():.4} fps', True, (255, 255, 255), (0, 0, 0))
-        decoder_fps_txt_rect = decoder_fps_txt.get_rect()
-        decoder_fps_txt_rect.topleft = (0, 0)
-        render_fps_txt = font.render(f'render {render_clock.get_fps():.4} fps', True, (255, 255, 255), (0, 0, 0))
-        render_fps_txt_rect = decoder_fps_txt.get_rect()
-        render_fps_txt_rect.topleft = (0, decoder_fps_txt_rect.bottom)
+        if fps:
+            decoder_fps_txt = font.render(f'decoder {decoder_clock.get_fps():.4} fps', True, (255, 255, 255), (0, 0, 0))
+            decoder_fps_txt_rect = decoder_fps_txt.get_rect()
+            decoder_fps_txt_rect.topleft = (0, 0)
+            render_fps_txt = font.render(f'render {render_clock.get_fps():.4} fps', True, (255, 255, 255), (0, 0, 0))
+            render_fps_txt_rect = decoder_fps_txt.get_rect()
+            render_fps_txt_rect.topleft = (0, decoder_fps_txt_rect.bottom)
         with render_lock:
             img.blit(rendered_surface, (0, 0), (200, 0, 625, 250))
+            if phosphore:
+                img.blit(prev, (0, 0))
         dst = pygame.transform.scale(img, (screen_width, screen_height))
+        if phosphore:
+            prev.blit(img, (0, 0))
+            img.fill((0, 0, 0))
         screen.blit(dst, (0, 0))
-        screen.blit(decoder_fps_txt, decoder_fps_txt_rect)
-        screen.blit(render_fps_txt, render_fps_txt_rect)
+        if fps:
+            screen.blit(decoder_fps_txt, decoder_fps_txt_rect)
+            screen.blit(render_fps_txt, render_fps_txt_rect)
         pygame.display.flip()
 
         render_clock.tick(120)

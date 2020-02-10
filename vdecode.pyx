@@ -12,6 +12,8 @@ DEF HOR_DRIVE_MASK = 0b00000100
 DEF BUFFER_WIDTH = 1000
 DEF BUFFER_HEIGHT = 500
 
+DEF PHOSPHORE_COLOR = 120
+
 cdef enum VState:
     PRE_VBLANK = 0
     VBLANK = 1
@@ -20,6 +22,7 @@ cdef enum VState:
     RIGHT_LINE = 4
 
 render_lock = Lock()
+
 decoded_surface = pygame.Surface((BUFFER_WIDTH, BUFFER_HEIGHT), depth=8)
 rendered_surface = pygame.Surface((BUFFER_WIDTH, BUFFER_HEIGHT), depth=8)
 
@@ -35,6 +38,8 @@ def decode(np.ndarray[np.uint8_t, ndim=1] raw_data, decoder_clock):
     cdef int i = 0
     cdef int buffer_len = raw_data.shape[0]
     cdef uint8_t b
+    current_buffer = decoded_surface.get_buffer()
+
     while i < buffer_len:
         if vstate == VState.PRE_VBLANK:
             with nogil:
@@ -57,7 +62,10 @@ def decode(np.ndarray[np.uint8_t, ndim=1] raw_data, decoder_clock):
                         break
             decoder_clock.tick()
             with render_lock:
-                decoded_surface, rendered_surface = rendered_surface, decoded_surface
+
+                del current_buffer
+                rendered_surface.blit(decoded_surface, (0, 0))
+                current_buffer = decoded_surface.get_buffer()
 
         if vstate == VState.HBLANK:
             while i < buffer_len:
@@ -74,7 +82,7 @@ def decode(np.ndarray[np.uint8_t, ndim=1] raw_data, decoder_clock):
             while i < buffer_len:
                 b = raw_data[i]
                 i += 1
-                line_buffer[current_pixel_index] = (1 - (b & VIDEO_MASK)) * 30
+                line_buffer[current_pixel_index] = (1 - (b & VIDEO_MASK)) * PHOSPHORE_COLOR
                 current_pixel_index += 1
                 if b & HOR_DRIVE_MASK == 0:
                     vstate = VState.RIGHT_LINE
@@ -86,11 +94,11 @@ def decode(np.ndarray[np.uint8_t, ndim=1] raw_data, decoder_clock):
                 i += 1
                 if b & HOR_DRIVE_MASK != 0:
                     vstate = VState.HBLANK
-                    current_buffer = decoded_surface.get_buffer()
                     current_buffer.write(bytes(line_buffer), current_line_index*BUFFER_WIDTH)
-                    del current_buffer
-
                     current_line_index += 1
                     break
-                line_buffer[current_pixel_index] = (1 - (b & VIDEO_MASK)) * 30
+                line_buffer[current_pixel_index] = (1 - (b & VIDEO_MASK)) * PHOSPHORE_COLOR
                 current_pixel_index += 1
+
+    del current_buffer
+
