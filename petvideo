@@ -46,7 +46,7 @@ def start_sigrok(driver: str = 'fx2lafw'):
     if not devs:
         print('No fx2la devices found.')
         return
-    dev = devs.scan()[0]
+    dev = devs[0]
     dev.open()
     dev.config_set(sr.ConfigKey.SAMPLERATE, LA_SAMPLE_RATE)
     session.add_device(dev)
